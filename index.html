@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>D&D Loot Generator</title>
+<style>
+  :root { --bg:#0e0f13; --panel:#161821; --accent:#7dd3fc; --text:#e6e6e6; --muted:#9aa0a6; --btn:#1f2330; --ok:#22c55e; --warn:#f59e0b;}
+  *{box-sizing:border-box}
+  body{margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Noto Sans,sans-serif; background:linear-gradient(180deg,#0e0f13 0%, #0b0c10 60%); color:var(--text);}
+  header{padding:20px 16px; border-bottom:1px solid #232535; background:#0b0c10; position:sticky; top:0; z-index:10}
+  h1{margin:0; font-size:20px; letter-spacing:.3px}
+  h1 span{color:var(--accent)}
+  main{padding:22px 16px; max-width:1100px; margin:0 auto}
+  .grid{display:grid; gap:16px}
+  .controls{grid-template-columns: repeat(12,1fr)}
+  .card{background:var(--panel); border:1px solid #232535; border-radius:14px; padding:16px}
+  label{font-size:12px; color:var(--muted); display:block; margin-bottom:6px}
+  select,input[type="number"],input[type="text"]{width:100%; background:#101320; color:var(--text); border:1px solid #2c3145; border-radius:10px; padding:10px 12px; outline:none}
+  .col-3{grid-column: span 3}
+  .col-4{grid-column: span 4}
+  .col-6{grid-column: span 6}
+  .col-8{grid-column: span 8}
+  .col-12{grid-column: span 12}
+  .row{display:flex; flex-wrap:wrap; gap:10px}
+  .btn{background:var(--btn); border:1px solid #2c3145; color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.primary{border-color:#2a5b7b}
+  .btn.success{border-color:#1c6f3e}
+  .btn.warn{border-color:#7a560d}
+  .tag{display:inline-flex; align-items:center; gap:6px; border:1px solid #2c3145; background:#111420; padding:4px 8px; border-radius:999px; font-size:12px; color:var(--muted)}
+  .out{display:grid; gap:12px}
+  .loot{background:#10131d; border:1px solid #23283d; border-radius:12px; padding:12px}
+  .loot h3{margin:0 0 8px 0; font-size:14px; color:#c7d2fe}
+  .loot pre{white-space:pre-wrap; word-break:break-word; margin:0; font-size:13px; color:#d9e3f0}
+  .muted{color:var(--muted)}
+  .pill{font-size:11px; padding:2px 8px; border-radius:999px; background:#0f172a; border:1px solid #293047; color:#cbd5e1}
+  .footer{margin-top:18px; font-size:12px; color:var(--muted)}
+  details{border:1px dashed #2c3145; border-radius:12px; padding:10px 12px}
+  summary{cursor:pointer; color:#cbd5e1; font-weight:600}
+  code{background:#0f1320; padding:1px 6px; border-radius:6px; border:1px solid #23283d}
+  @media (max-width:900px){
+    .col-3,.col-4,.col-6,.col-8{grid-column: span 12}
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1><span>LootSmith</span> — fast D&D loot generator</h1>
+  </header>
+  <main>
+    <div class="grid controls card">
+      <div class="col-3">
+        <label>Source</label>
+        <select id="source">
+          <option value="enemy">Enemy</option>
+          <option value="chest">Chest</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label>Tier / CR Band</label>
+        <select id="tier">
+          <option value="t1">Tier 1 (Lv 1–4 / CR 0–2)</option>
+          <option value="t2">Tier 2 (Lv 5–10 / CR 3–10)</option>
+          <option value="t3">Tier 3 (Lv 11–16 / CR 11–16)</option>
+          <option value="t4">Tier 4 (Lv 17–20 / CR 17+)</option>
+        </select>
+      </div>
+      <div class="col-3">
+        <label>Number of Rolls</label>
+        <input id="rolls" type="number" min="1" max="50" value="3"/>
+      </div>
+      <div class="col-3">
+        <label>Include Magic Items?</label>
+        <select id="magic">
+          <option value="weighted" selected>Weighted (rarity-based)</option>
+          <option value="always">Always include</option>
+          <option value="never">No magic items</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <label>Gold Dice (e.g., 2d6×10)</label>
+        <input id="goldDice" type="text" value="2d6x10"/>
+      </div>
+      <div class="col-4">
+        <label>Consumable Chance</label>
+        <select id="consumableChance">
+          <option value="0.2">20%</option>
+          <option value="0.35" selected>35%</option>
+          <option value="0.5">50%</option>
+          <option value="0.75">75%</option>
+          <option value="1">Always</option>
+        </select>
+      </div>
+      <div class="col-4">
+        <label>Attunement Bias</label>
+        <select id="attuneBias">
+          <option value="neutral" selected>Neutral</option>
+          <option value="avoid">Avoid Attunement</option>
+          <option value="prefer">Prefer Attunement</option>
+        </select>
+      </div>
+      <div class="col-12 row">
+        <button class="btn primary" id="gen">Generate Loot</button>
+        <button class="btn" id="copy">Copy to Clipboard</button>
+        <button class="btn" id="export">Export as JSON</button>
+        <span class="tag">Session-ready. No internet needed.</span>
+      </div>
+    </div>
+
+    <div class="grid out">
+      <div class="loot">
+        <h3>Results <span class="pill" id="seedPill"></span></h3>
+        <pre id="results" aria-live="polite">Pick your options above and click “Generate Loot”.</pre>
+      </div>
+
+      <details class="card">
+        <summary>Advanced: Edit Tables / Add Items</summary>
+        <div class="grid" style="margin-top:10px">
+          <div class="col-12">
+            <label>Item Tables (JSON)</label>
+            <textarea id="tables" rows="14" style="width:100%; background:#0f1320; color:#e6e6e6; border:1px solid #23283d; border-radius:10px; padding:10px"></textarea>
+          </div>
+          <div class="col-12 row">
+            <button class="btn success" id="applyTables">Apply Changes</button>
+            <span class="muted">You can paste in custom lists (e.g., campaign‑specific items) and tweak weights.</span>
+          </div>
+        </div>
+      </details>
+
+      <div class="footer">
+        Built for quick table rolls at the table. Inspired by 5e treasure vibes; not a strict SRD table. Adjust to your DM’s taste.
+      </div>
+    </div>
+  </main>
+
+<script>
+/* -------- Utilities -------- */
+const rand = (n) => Math.floor(Math.random()*n);
+const choice = (arr) => arr[rand(arr.length)];
+const roll = (s) => {
+  // e.g., "2d6x10" or "4d4+2"
+  const m = String(s).toLowerCase().replaceAll(' ','').match(/(\d*)d(\d+)([+\-]\d+)?(?:x(\d+))?/);
+  if(!m) return 0;
+  const c = Number(m[1]||1), d = Number(m[2]), mod = Number(m[3]||0), mult = Number(m[4]||1);
+  let total=0; for(let i=0;i<c;i++) total += 1+rand(d);
+  return (total+mod)*mult;
+};
+const weightedPick = (table, biasFn = null) => {
+  // table: [{name, w, attune?}] ; optional biasFn adjusts weights
+  let items = table.map(x => ({...x}));
+  if (biasFn) items = items.map(biasFn);
+  const sum = items.reduce((a,b)=>a+(b.w||1),0);
+  let r = Math.random()*sum;
+  for(const it of items){
+    r -= it.w||1;
+    if(r<=0) return it;
+  }
+  return items[items.length-1];
+};
+const formatGP = (n) => `${n} gp`;
+const pad = (n)=> String(n).padStart(2,'0');
+
+/* -------- Data: Core Tables -------- */
+const DEFAULT_TABLES = {
+  rarities: {
+    t1: [{name:"Common", w:65},{name:"Uncommon", w:28},{name:"Rare", w:6},{name:"Very Rare", w:1}],
+    t2: [{name:"Common", w:30},{name:"Uncommon", w:45},{name:"Rare", w:20},{name:"Very Rare", w:5}],
+    t3: [{name:"Uncommon", w:35},{name:"Rare", w:45},{name:"Very Rare", w:18},{name:"Legendary", w:2}],
+    t4: [{name:"Rare", w:40},{name:"Very Rare", w:45},{name:"Legendary", w:14},{name:"Artifact", w:1}],
+  },
+  // Simple consumables
+  consumables: [
+    {name:"Potion of Healing", w:30},
+    {name:"Potion of Greater Healing", w:18},
+    {name:"Potion of Fire Breath", w:6},
+    {name:"Potion of Resistance (Fire)", w:6},
+    {name:"Scroll (1st level)", w:20},
+    {name:"Scroll (2nd level)", w:12},
+    {name:"Scroll (3rd level)", w:6},
+    {name:"Alchemist’s Fire (flask)", w:4},
+    {name:"Holy Water (flask)", w:4},
+    {name:"Poison, basic", w:6},
+  ],
+  mundane: {
+    enemy: [
+      {name:"Coin purse", w:35},
+      {name:"Dagger (well-worn)", w:18},
+      {name:"Shortsword", w:12},
+      {name:"Crossbow bolts (20)", w:10},
+      {name:"Lockpicks (thieves’ tools piece)", w:5},
+      {name:"Trinket with a strange symbol", w:9},
+      {name:"Map fragment", w:6},
+      {name:"Ring (silver)", w:5}
+    ],
+    chest: [
+      {name:"Gemstones (handful)", w:22},
+      {name:"Art object (small)", w:16},
+      {name:"Fine clothing", w:10},
+      {name:"Candle of black wax", w:8},
+      {name:"Jewelry box", w:10},
+      {name:"Tool kit (partial)", w:7},
+      {name:"Rations (3 days)", w:8},
+      {name:"Lantern & oil", w:9},
+      {name:"Journal with coded notes", w:10}
+    ]
+  },
+  magicByRarity: {
+    Common: [
+      {name:"Potion of Healing (common)", w:16, attune:false},
+      {name:"Potion of Climbing", w:6, attune:false},
+      {name:"Spell Scroll (Cantrip/1st)", w:12, attune:false},
+      {name:"Ammunition +1 (3 pcs)", w:8, attune:false},
+      {name:"Moon-Touched Sword", w:6, attune:false},
+      {name:"Enduring Spellbook", w:3, attune:false},
+      {name:"Driftglobe", w:6, attune:false},
+      {name:"Masquerade Tattoo", w:3, attune:true},
+      {name:"Cloak of Billowing", w:9, attune:false},
+      {name:"Perfume of Bewitching", w:4, attune:false},
+    ],
+    Uncommon: [
+      {name:"+1 Weapon (choose type)", w:16, attune:false},
+      {name:"+1 Shield", w:10, attune:false},
+      {name:"Cloak of Protection", w:9, attune:true},
+      {name:"Boots of Elvenkind", w:8, attune:false},
+      {name:"Goggles of Night", w:6, attune:false},
+      {name:"Bag of Holding", w:10, attune:false},
+      {name:"Winged Boots", w:5, attune:true},
+      {name:"Gloves of Thievery", w:7, attune:false},
+      {name:"Eversmoking Bottle", w:5, attune:false},
+      {name:"Amulet of Proof against Detection & Location", w:4, attune:true}
+    ],
+    Rare: [
+      {name:"+2 Weapon (choose type)", w:12, attune:false},
+      {name:"Armor +1 (choose type)", w:8, attune:false},
+      {name:"Ring of Evasion", w:6, attune:true},
+      {name:"Cloak of Displacement", w:6, attune:true},
+      {name:"Wand of the War Mage +2", w:6, attune:true},
+      {name:"Amulet of Health", w:5, attune:true},
+      {name:"Pearl of Power", w:6, attune:true},
+      {name:"Staff of the Python", w:5, attune:true},
+      {name:"Figurine of Wondrous Power (Onyx Dog)", w:3, attune:false},
+      {name:"Ammunition +2 (3 pcs)", w:3, attune:false}
+    ],
+    "Very Rare": [
+      {name:"+3 Weapon (choose type)", w:10, attune:false},
+      {name:"Armor +2 (choose type)", w:7, attune:false},
+      {name:"Ring of Spell Storing", w:6, attune:true},
+      {name:"Cloak of Invisibility (limited)", w:3, attune:true},
+      {name:"Wand of the War Mage +3", w:4, attune:true},
+      {name:"Manual of Quickness of Action", w:2, attune:false},
+      {name:"Amulet of the Planes", w:2, attune:true}
+    ],
+    Legendary: [
+      {name:"Armor +3 (choose type)", w:8, attune:false},
+      {name:"Vorpal Sword", w:2, attune:true},
+      {name:"Staff of the Magi", w:1, attune:true},
+      {name:"Ring of Three Wishes (1d3 wishes)", w:1, attune:true},
+      {name:"Tome of the Stilled Tongue", w:1, attune:true}
+    ],
+    Artifact: [
+      {name:"Artifact (DM’s choice)", w:1, attune:true}
+    ]
+  },
+  goldBase: {
+    enemy: {t1:"2d6x1", t2:"3d6x5", t3:"4d6x10", t4:"6d6x25"},
+    chest: {t1:"2d6x10", t2:"4d6x25", t3:"6d6x50", t4:"8d6x100"}
+  }
+};
+
+/* -------- State & Tables Editor -------- */
+let TABLES = JSON.parse(JSON.stringify(DEFAULT_TABLES));
+const tablesEl = document.getElementById('tables');
+const loadTablesEditor = () => tablesEl.value = JSON.stringify(TABLES, null, 2);
+loadTablesEditor();
+document.getElementById('applyTables').addEventListener('click', () => {
+  try{
+    const obj = JSON.parse(tablesEl.value);
+    TABLES = obj;
+    alert('Tables updated!');
+  }catch(e){
+    alert('Invalid JSON in tables editor.');
+  }
+});
+
+/* -------- Bias helpers -------- */
+const attuneBiasFn = (mode)=> (item)=>{
+  const base = item.w || 1;
+  if(mode==='avoid' && item.attune===true) return {...item, w: base*0.5};
+  if(mode==='prefer' && item.attune===true) return {...item, w: base*1.6};
+  return item;
+}
+
+/* -------- Generators -------- */
+const rarityForTier = (tier)=> weightedPick(TABLES.rarities[tier]);
+const maybeConsumable = (chance)=> Math.random() < chance ? weightedPick(TABLES.consumables) : null;
+const goldFor = (source,tier,custom) => {
+  const dice = (custom && custom.trim()) ? custom.trim() : TABLES.goldBase[source][tier];
+  return roll(dice);
+};
+const mundaneFor = (source)=> weightedPick(TABLES.mundane[source]);
+
+const magicFor = (tier, biasMode) => {
+  const r = rarityForTier(tier).name;
+  const table = TABLES.magicByRarity[r] || [];
+  const picked = weightedPick(table, attuneBiasFn(biasMode));
+  return {rarity:r, ...picked};
+};
+
+/* -------- Main Roll -------- */
+const seedPill = document.getElementById('seedPill');
+function generateLoot(){
+  const source = document.getElementById('source').value;
+  const tier = document.getElementById('tier').value;
+  const rolls = Math.max(1, Math.min(50, Number(document.getElementById('rolls').value||1)));
+  const magicPref = document.getElementById('magic').value;
+  const consumableChance = Number(document.getElementById('consumableChance').value);
+  const attuneMode = document.getElementById('attuneBias').value;
+  const goldDice = document.getElementById('goldDice').value;
+
+  const ts = new Date();
+  const seedLabel = `${ts.getFullYear()}-${pad(ts.getMonth()+1)}-${pad(ts.getDate())} ${pad(ts.getHours())}:${pad(ts.getMinutes())}`;
+  seedPill.textContent = `Seed: ${seedLabel}`;
+
+  let out = [];
+  for(let i=0;i<rolls;i++){
+    const gold = goldFor(source, tier, goldDice);
+    const mundane = mundaneFor(source);
+    let cons = maybeConsumable(consumableChance);
+    let magic = null;
+    if(magicPref==='always') magic = magicFor(tier, attuneMode);
+    else if(magicPref==='weighted' && Math.random() < ['t1','t2','t3','t4'].indexOf(tier)*0.2 + (source==='chest'?0.15:0.05)) {
+      // rising chance with tier; chests more generous
+      magic = magicFor(tier, attuneMode);
+    }
+
+    let line = `• ${source==='enemy'?'Enemy':'Chest'} Loot: ${formatGP(gold)}; ${mundane.name}`;
+    if(cons) line += `; Consumable: ${cons.name}`;
+    if(magic) line += `; Magic ${magic.rarity}: ${magic.name}${magic.attune ? " (attunement)" : ""}`;
+    out.push(line);
+  }
+
+  document.getElementById('results').textContent = out.join("\n");
+}
+
+document.getElementById('gen').addEventListener('click', generateLoot);
+document.getElementById('copy').addEventListener('click', () => {
+  const txt = document.getElementById('results').textContent;
+  navigator.clipboard.writeText(txt).then(()=> alert('Loot copied to clipboard!'));
+});
+document.getElementById('export').addEventListener('click', () => {
+  const txt = document.getElementById('results').textContent;
+  const payload = {
+    version: 1,
+    generatedAt: new Date().toISOString(),
+    options: {
+      source: document.getElementById('source').value,
+      tier: document.getElementById('tier').value,
+      rolls: Number(document.getElementById('rolls').value||1),
+      magic: document.getElementById('magic').value,
+      consumableChance: Number(document.getElementById('consumableChance').value),
+      attuneBias: document.getElementById('attuneBias').value,
+      goldDice: document.getElementById('goldDice').value
+    },
+    results: txt.split("\n").filter(Boolean)
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'loot.json';
+  a.click();
+});
+
+/* Initialize with one roll so there's content */
+generateLoot();
+</script>
+</body>
+</html>
